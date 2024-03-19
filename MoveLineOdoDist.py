@@ -2,8 +2,6 @@ import sys
 import time
 import random
 from math import*
-from trik import brick
-from q import script
 
 pi = 3.14159265
 
@@ -19,11 +17,8 @@ A = atan2(L, K)
 l1 = 101.25
 l2 = 175/2
 
-target_x = 1000
-target_y = 0
-target_w = 0
-
-base_speed = 0.35
+base_speed_x = 1.4
+base_speed_y = 1.7
 
 calculation_timer = 0
 odometry_timer = 0
@@ -32,12 +27,23 @@ ticks_to_mm = (pi*100)/(12*45)
 
 display_timer = 0
 
+delta_y = 0
+delta_x = 0
+
+brake_x = 70
+brake_y = 50
+
 def sign(val):
   if val < 0:
     return -1
   if val:
     return 1
   return 0
+ 
+def sign_2(val):
+  if val < 0:
+    return -1
+  return 1
   
 col = 20
 def print(s, val):
@@ -56,6 +62,8 @@ class Motor_pid:
     self.target_speed = 0    
     self.coefA = coefA
     self.coefB = coefB
+    self.accel = 20
+    self.last_speed = 0
    
   def set_motor(self, speed):
     self.motor(speed)
@@ -78,7 +86,10 @@ class Motor_pid:
     #brick.display().addLabel(speed, 1, 60)
     #brick.display().addLabel(self.targetSpeed, 1, 80)
     #brick.display().redraw()
+    if abs(speed) - abs(self.last_speed) > self.accel:
+      speed = self.last_speed + sign(speed)*self.accel
     self.motor(speed)
+    self.last_speed = speed
 
 
 class Odometry:
@@ -91,7 +102,10 @@ class Odometry:
     self.y = 0
     self.x_glob = 0
     self.y_glob = 0
+    self.x_proj = 0
+    self.y_proj = 0
     self.w = 0
+    self.w_loc = 0
     self.enc1 = Encoder1
     self.enc2 = Encoder2
     self.enc3 = Encoder3
@@ -122,20 +136,24 @@ class Odometry:
      
      self.x += dx
      self.y += dy
-     self.x_glob += (dx*cos(self.w) - dy*sin(self.w))
-     self.y_glob += (dx*sin(self.w) + dy*cos(self.w))
-     self.w += (((-self.dw1+self.dw2-self.dw3+self.dw4)/((l1**2+l2**2)**0.5))/4)*0.702
+     self.x_glob += (dx*cos(self.w) + dy*sin(self.w))
+     self.y_glob += (-dx*sin(self.w) + dy*cos(self.w))
+     
+     dw = (((-self.dw1+self.dw2-self.dw3+self.dw4)/((l1**2+l2**2)**0.5))/4)*0.702
+     self.w += dw
+     self.w_loc += dw
+     
+     self.x_proj = (self.x_glob*cos(-self.w) + self.y_glob*sin(-self.w))
+     self.y_proj = (-self.x_glob*sin(-self.w) + self.y_glob*cos(-self.w))
+
 
 
 a = brick.encoder(E1)
 m1_pid = Motor_pid(a, brick.motor(M1).setPower, 60, -1, 133, -17)
-
 b = brick.encoder(E2)
-m2_pid = Motor_pid(b, brick.motor(M2).setPower, 60, -1, 150, -17)
-
+m2_pid = Motor_pid(b, brick.motor(M2).setPower, 60, -1, 133, -17)
 c = brick.encoder(E3)
 m3_pid = Motor_pid(c, brick.motor(M3).setPower, 60, -1, 133, -17)
-
 d = brick.encoder(E4)
 m4_pid = Motor_pid(d, brick.motor(M4).setPower, 60, -1, 133, -17)
 
@@ -146,17 +164,14 @@ d.reset()
 
 odom = Odometry(a, b, c, d)
 
-def goToLine(speed = 0.3, kP = 0.005):
+def goToLineSensor(speed = 0.3, kP = 0.005, MINDIST = 35):
   global m1_pid, m2_pid, m3_pid, m4_pid, a, b, c, d
   oldTime = 0
   ligth1 = brick.sensor("A6").read()
   ligth2 = brick.sensor("A5").read()
-  startDist = odom.x
-  currentDist = odom.x    
-  while brick.sensor("D2").read() < dist:
+  while brick.sensor("D2").read() > MINDIST:
     odom.tick()
-    if(time.time()-oldTime>0.01):
-      currentDist = odom.x
+    if(time.time() - oldTime>0.01):
       oldTime = time.time()
       ligth1 = brick.sensor("A6").read()
       ligth2 = brick.sensor("A5").read()
@@ -171,24 +186,39 @@ def goToLine(speed = 0.3, kP = 0.005):
       m4_pid.motor_pid()
 
 
-goToLine()
-
-while(True):
-  if (time.time() - odometry_timer > 0.05):
-    odometry_timer = time.time()
+def goToLineDistance(distance, speed = 0.4, kP = 0.0035):
+  global m1_pid, m2_pid, m3_pid, m4_pid, a, b, c, d
+  dist_error = 355*speed - 104
+  distance -= dist_error 
+  oldTime = 0
+  ligth1 = brick.sensor("A6").read()
+  ligth2 = brick.sensor("A5").read()
+  startX = odom.x
+  odom.tick()
+  brick.display().addLabel(odom.x,1,10)
+  brick.display().redraw()
+  while odom.x - startX < distance:
     odom.tick()
-  
-  if (time.time() - display_timer > 0.1):
-    display_timer = time.time()
-    print("dw1", odom.dw1)
-    print("dw2", odom.dw1)
-    print("dw3", odom.dw1)
-    print("dw4", odom.dw1)
-    print("x", odom.x)
-    print("y", odom.y)
-    print("x_glob", odom.x_glob)
-    print("y_glob", odom.y_glob)
-    print("w", odom.w)
-    brick.display().redraw()
-    col = 0
+    if(time.time() - oldTime>0.01):
+      oldTime = time.time()
+      ligth1 = brick.sensor("A6").read()
+      ligth2 = brick.sensor("A5").read()
+      error = (ligth1 - ligth2) * kP
+      brick.display().addLabel("L1 = " + str(ligth1),1,10)
+      brick.display().addLabel("L2 = " + str(ligth2),1,20)
+      brick.display().addLabel("error = " + str(error),1,30)
+      brick.display().redraw()
+      m1_pid.target_speed = speed - error
+      m2_pid.target_speed = speed + error
+      m3_pid.target_speed = speed 
+      m4_pid.target_speed = speed 
+      m1_pid.motor_pid()
+      m2_pid.motor_pid()
+      m3_pid.motor_pid()
+      m4_pid.motor_pid()
 
+
+goToLineDistance(500, 0.6, 0.005) 
+# 0.6 0.005
+# 0.4 -> 3 / 3/3
+# 0.6 -> 10 (8, 11)

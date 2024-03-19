@@ -1,8 +1,7 @@
 import sys
 import time
 import random
-from math import*
-import numpy as np 
+from math import *
 import heapq 
 
 
@@ -20,8 +19,8 @@ A = atan2(L, K)
 l1 = 101.25
 l2 = 175/2
 
-base_speed_x = 1.4
-base_speed_y = 1.7
+base_speed_x = 1.7
+base_speed_y = 2.1
 
 calculation_timer = 0
 odometry_timer = 0
@@ -33,7 +32,7 @@ display_timer = 0
 delta_y = 0
 delta_x = 0
 
-brake_x = 70
+brake_x = 100
 brake_y = 50
 
 def sign(val):
@@ -101,14 +100,14 @@ class Odometry:
     self.last_w2 = 0
     self.last_w3 = 0
     self.last_w4 = 0
-    self.x = 0
-    self.y = 0
+    self.x = 5000
+    self.y = 5000
     self.x_glob = 0
     self.y_glob = 0
     self.x_proj = 0
     self.y_proj = 0
     self.w = 0
-    self.w_loc = 0
+    self.w_loc = 2 * pi
     self.enc1 = Encoder1
     self.enc2 = Encoder2
     self.enc3 = Encoder3
@@ -155,13 +154,13 @@ a = brick.encoder(E1)
 m1_pid = Motor_pid(a, brick.motor(M1).setPower, 60, -1, 165, -17)
 
 b = brick.encoder(E2)
-m2_pid = Motor_pid(b, brick.motor(M2).setPower, 60, -1, 120, -17)
+m2_pid = Motor_pid(b, brick.motor(M2).setPower, 60, -1, 110, -17)
 
 c = brick.encoder(E3)
 m3_pid = Motor_pid(c, brick.motor(M3).setPower, 60, -1, 165, -17)
 
 d = brick.encoder(E4)
-m4_pid = Motor_pid(d, brick.motor(M4).setPower, 60, -1, 120, -17)
+m4_pid = Motor_pid(d, brick.motor(M4).setPower, 60, -1, 110, -17)
 
 a.reset()
 b.reset()
@@ -172,13 +171,10 @@ odom = Odometry(a, b, c, d)
 
 s1 = brick.motor("S1").setPower
 s2 = brick.motor("S2").setPower
-def armSetup():
-  s1(-40)
-  s2(-40)
-  
-armSetup()
 
 def move_forward_dist(distance):
+  distance_old = distance
+  distance -= brake_x*sign(distance) 
   global delta_x
   global m1_pid, m2_pid, m3_pid, m4_pid, odom
   delay_time = time.time()
@@ -198,17 +194,28 @@ def move_forward_dist(distance):
     odom.tick()
     if time.time() - local_timer > 0.1:
       local_timer = time.time()
-      if(abs(odom.x_proj-delta_x) < abs(distance)):
-        vx = base_speed_x * sign((distance+delta_x) - odom.x_proj)
-        print("vx", vx)
-        brick.display().redraw()
-        col = 0
-        vy = (odom.y_proj - delta_y)/120
+      if (abs(odom.x_glob-delta_x) < abs(distance)):
+        vx = base_speed_x * sign((distance+delta_x) - odom.x_glob)
+        #print("vx", vx)
+        #brick.display().redraw()
+        #col = 0
+        vy = (odom.y_glob - delta_y) / 170
         vy*=-1
-        vw = -(odom.w-last_w)*base_speed_x*15
+        vw = -(odom.w-last_w) * base_speed_x * 10
         if(time.time() - delay_time <0.5):
           vy = 0
           vw = 0
+        
+        if vy > base_speed_y*0.7:
+          vy = base_speed_y*0.7
+        if vy < -base_speed_y*0.7:
+          vy = -base_speed_y*0.7
+        
+        if vw > base_speed_x*0.7:
+          vw = base_speed_x*0.7
+        if vw < -base_speed_x*0.7:
+          vw = -base_speed_x*0.7
+        
         w1 = (vx + vy - vw)
         w2 = (vx - vy + vw)
         w3 = (vx - vy - vw)
@@ -227,7 +234,7 @@ def move_forward_dist(distance):
         m2_pid.motor_pid()
         m3_pid.motor_pid()
         m4_pid.motor_pid()
-        delta_x += distance
+        delta_x += distance_old
         
         return
       m1_pid.motor_pid()
@@ -237,9 +244,12 @@ def move_forward_dist(distance):
 
 
 def move_sideways_dist(distance):
+  distance_old = distance
   distance -= brake_y*sign(distance)
   global delta, col, delta_y
   global m1_pid, m2_pid, m3_pid, m4_pid, odom
+  global display_timer
+  
   delay_time = time.time()
   last_x = odom.x
   last_y = odom.y_proj
@@ -254,17 +264,41 @@ def move_sideways_dist(distance):
   m3_pid.last_speed = 0  
   m4_pid.last_speed = 0  
   while (1):
+    if (time.time() - display_timer > 0.1):
+      display_timer = time.time()
+      print("dw1", odom.dw1)
+      print("dw2", odom.dw1)
+      print("dw3", odom.dw1)
+      print("dw4", odom.dw1)
+      print("x", odom.x)
+      print("y", odom.y)
+      print("x_glob", odom.x_glob)
+      print("y_glob", odom.y_glob)
+      print("w", odom.w)
+      brick.display().redraw()
+      col = 0
+    
     odom.tick()
     if time.time() - local_timer > 0.1:
       local_timer = time.time()
-      if (abs(odom.y_proj-delta_y) < abs(distance)):
-        vy = base_speed_y * sign((distance+delta_y) - odom.y_proj)
-        vx = (odom.x_proj - delta_x)/100  
+      if (abs(odom.y_glob-delta_y) < abs(distance)):
+        vy = base_speed_y * sign((distance+delta_y) - odom.y_glob)
+        vx = (odom.x_glob - delta_x)/150  
         vx*=-1
-        vw = -(odom.w-last_w)*base_speed_x*20
+        vw = -(odom.w-last_w)*base_speed_x*15
         if(time.time() - delay_time <0.5):
           vy = 0
           vw = 0
+        
+        if vx > base_speed_x*0.7:
+          vx = base_speed_x*0.7
+        if vx < -base_speed_x*0.7:
+          vx = -base_speed_x*0.7
+         
+        if vw > base_speed_y*0.5:
+          vw = base_speed_y*0.5
+        if vw < -base_speed_y*0.5:
+          vw = -base_speed_y*0.5
         w1 = (vx + vy - vw)
         w2 = (vx - vy + vw)
         w3 = (vx - vy - vw)
@@ -283,7 +317,8 @@ def move_sideways_dist(distance):
         m2_pid.motor_pid()
         m3_pid.motor_pid()
         m4_pid.motor_pid()
-        delta_y += distance
+        delta_y += distance_old
+        odom.w += 0.08*sign(distance)*-1
         return
       m1_pid.motor_pid()
       m2_pid.motor_pid()
@@ -339,13 +374,20 @@ class Astar:
         self.move_x, self.move_y = move_x, move_y 
         self.current_coords = tuple(robot_coords) 
  
-        self.map_obs = np.array([[1] * self.x for _ in range(self.y)]) 
-        w, h = self.map_obs.shape[:2] 
-        self.map_obs[pad:w-pad, pad:h-pad] = 0 
+        self.map_obs = [[1] * self.x for _ in range(self.y)]
+#        w, h = self.map_obs.shape[:2] 
+#        self.map_obs[pad:w-pad][pad:h-pad] = 0
+        for i in range(pad, len(self.map_obs)-pad+1):
+          for j in range(pad, len(self.map_obs[0])-pad+1):
+              self.map_obs[i][j] = 0
+        
  
     def create_obs(self, x, y): 
         pad = self.pad 
-        self.map_obs[x-pad:x+pad+1, y-pad:y+pad+1] = 1 
+        self.map_obs[x][y] = 1 
+        for i in range(x-pad, x+pad):
+          for j in range(y-pad, y+pad):
+            self.map_obs[i][j] = 1
         # self.map_obs[x-pad, y-pad] = 0 
         # self.map_obs[x-pad, y+pad] = 0 
         # self.map_obs[x+pad, y-pad] = 0 
@@ -422,49 +464,65 @@ class Astar:
                 self.create_obs(point[0], point[1])      
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------
- 
-ast = Astar([40, 24], 2, 60, 50, [21, 2]) 
 
- 
+def goToLineDistance(distance, speed = 0.4, kP = 0.0035):
+  global m1_pid, m2_pid, m3_pid, m4_pid, a, b, c, d
+  dist_error = 355*speed - 104
+  distance -= dist_error 
+  oldTime = 0
+  ligth1 = brick.sensor("A6").read()
+  ligth2 = brick.sensor("A5").read()
+  startX = odom.x
+  odom.tick()
+  brick.display().addLabel(odom.x,1,10)
+  brick.display().redraw()
+  while odom.x - startX < distance:
+    odom.tick()
+    if(time.time() - oldTime>0.01):
+      oldTime = time.time()
+      ligth1 = brick.sensor("A6").read()
+      ligth2 = brick.sensor("A5").read()
+      error = (ligth1 - ligth2) * kP
+      brick.display().addLabel("L1 = " + str(ligth1),1,10)
+      brick.display().addLabel("L2 = " + str(ligth2),1,20)
+      brick.display().addLabel("error = " + str(error),1,30)
+      brick.display().redraw()
+      m1_pid.target_speed = speed - error
+      m2_pid.target_speed = speed + error
+      m3_pid.target_speed = speed 
+      m4_pid.target_speed = speed 
+      m1_pid.motor_pid()
+      m2_pid.motor_pid()
+      m3_pid.motor_pid()
+      m4_pid.motor_pid()
+      
+      
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ast = Astar([40, 24], 2, 60, 50, [21, 2]) 
+#
+#print("fsdfds", 1210)
+#brick.display().redraw()
+#col=0
 
 obs_list = [[11, 5, 21, 14]] 
 for i in obs_list: 
     ast.create_obs_lst(i[0], i[1], i[2], i[3]) 
 
-way = ast.astar((20,20))
+way = ast.astar((3, 38))
 way = ast.to_commad(way)
 for command in way:
     if(command[0] == "forward"):
         move_forward_dist(command[1])
-        print(command)
+        script.wait(500)
     elif(command[0] == "backward"):
         move_forward_dist(-command[1])
-        print(command)
+        script.wait(500)
     elif(command[0] == "right"):
         move_sideways_dist(command[1])
-        print(command)
+        script.wait(500)
     elif(command[0] == "left"):
         move_sideways_dist(-command[1])
-        print(command)
-'''
-while(True):
-  if (time.time() - odometry_timer > 0.05):
-    odometry_timer = time.time()
-    odom.tick()
-  
-  if (time.time() - display_timer > 0.1):
-    display_timer = time.time()
-    print("dw1", odom.dw1)
-    print("dw2", odom.dw1)
-    print("dw3", odom.dw1)
-    print("dw4", odom.dw1)
-    print("x", odom.x)
-    print("y", odom.y)
-    print("x_glob", odom.x_glob)
-    print("y_glob", odom.y_glob)
-    print("x_proj", odom.x_proj)
-    print("y_proj", odom.y_proj)
-    print("w", odom.w)
-    brick.display().redraw()
-    col = 0
-'''
+        script.wait(500)
+        
