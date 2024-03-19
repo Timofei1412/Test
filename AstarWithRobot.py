@@ -435,16 +435,16 @@ way = ast.astar((20,20))
 way = ast.to_commad(way)
 for command in way:
     if(command[0] == "forward"):
-        #move_forward_dist(command[1])
+        move_forward_dist(command[1])
         print(command)
     elif(command[0] == "backward"):
-        #move_forward_dist(-command[1])
+        move_forward_dist(-command[1])
         print(command)
     elif(command[0] == "right"):
-        #move_sideways_dist(command[1])
+        move_sideways_dist(command[1])
         print(command)
     elif(command[0] == "left"):
-        #move_sideways_dist(-command[1])
+        move_sideways_dist(-command[1])
         print(command)
 '''
 while(True):

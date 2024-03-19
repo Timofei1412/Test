@@ -12,7 +12,7 @@ pi = 3.14159265
 L = 202.5/2
 K = 175/2
 B = pi/4
-D=100
+D = 100
 
 D = D/2
 l = (L**2 + K**2)**0.5
@@ -110,23 +110,27 @@ class Odometry:
      e2 = self.enc2.readRawData()
      e3 = self.enc3.readRawData()
      e4 = self.enc4.readRawData()
-     self.dw1 = (e1 - self.last_w1)*ticks_to_mm
-     self.dw2 = (e2 - self.last_w2)*(-1)*ticks_to_mm
-     self.dw3 = (e3 - self.last_w3)*ticks_to_mm
-     self.dw4 = (e4 - self.last_w4)*(-1)*ticks_to_mm
+     self.dw1 = (e1 - self.last_w1) * ticks_to_mm
+     self.dw2 = (e2 - self.last_w2) * (-1) * ticks_to_mm
+     self.dw3 = (e3 - self.last_w3) * ticks_to_mm
+     self.dw4 = (e4 - self.last_w4) * (-1) * ticks_to_mm
      self.last_w1 = e1
      self.last_w2 = e2
      self.last_w3 = e3
      self.last_w4 = e4
-     
+       
      dx = (self.dw1 + self.dw2 + self.dw3 + self.dw4)/4
      dy = (self.dw1 - self.dw2 - self.dw3 + self.dw4)/4
      
      self.x += dx
      self.y += dy
-     self.x_glob += (dx*cos(self.w) - dy*sin(self.w))
-     self.y_glob += (dx*sin(self.w) + dy*cos(self.w))
-     self.w += (((-self.dw1+self.dw2-self.dw3+self.dw4)/((l1**2+l2**2)**0.5))/4)*0.702
+     self.x_glob += (dx * cos(self.w) - dy * sin(self.w))
+     self.y_glob += (dx * sin(self.w) + dy * cos(self.w))
+     self.w += (((-self.dw1 + self.dw2 - self.dw3 + self.dw4)/((l1**2 + l2**2)**0.5))/4) * 0.702
+     '''
+     self.x_proj = (self.x_glob * cos(-self.w) + self.y_glob * sin(-self.w))
+     self.y_proj = (-self.x_glob * sin(-self.w) + self.y_glob * cos(-self.w))
+     '''
 
 
 a = brick.encoder("E1")
