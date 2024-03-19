@@ -332,7 +332,7 @@ def lineFollowUntilCross(val = 50, speed = 0.4, kP = 0.0035):
   ligth1 = brick.sensor("A6").read()    # Значение датчика 1
   ligth2 = brick.sensor("A5").read()    # Значение датчика 2
   startTime = time.time()
-  while light1 <= val and light2 <= val:    # Пока не перекресток
+  while ligth1 <= val and ligth2 <= val:    # Пока не перекресток
     odom.tick()
     if(time.time() - oldTime > 0.1):
       oldTime = time.time()
