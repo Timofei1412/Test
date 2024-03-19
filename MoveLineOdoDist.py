@@ -130,19 +130,15 @@ class Odometry:
      self.last_w2 = e2
      self.last_w3 = e3
      self.last_w4 = e4
-     
      dx = (self.dw1 + self.dw2 + self.dw3 + self.dw4)/4
      dy = (self.dw1 - self.dw2 - self.dw3 + self.dw4)/4
-     
      self.x += dx
      self.y += dy
      self.x_glob += (dx*cos(self.w) + dy*sin(self.w))
      self.y_glob += (-dx*sin(self.w) + dy*cos(self.w))
-     
      dw = (((-self.dw1+self.dw2-self.dw3+self.dw4)/((l1**2+l2**2)**0.5))/4)*0.702
      self.w += dw
      self.w_loc += dw
-     
      self.x_proj = (self.x_glob*cos(-self.w) + self.y_glob*sin(-self.w))
      self.y_proj = (-self.x_glob*sin(-self.w) + self.y_glob*cos(-self.w))
 
@@ -164,19 +160,19 @@ d.reset()
 
 odom = Odometry(a, b, c, d)
 
-def goToLineSensor(speed = 0.3, kP = 0.005, MINDIST = 35):
+def goToLineSensor(MINDIST = 35, speed = 0.3, kP = 0.005):
   global m1_pid, m2_pid, m3_pid, m4_pid, a, b, c, d
   oldTime = 0
-  ligth1 = brick.sensor("A6").read()
-  ligth2 = brick.sensor("A5").read()
-  while brick.sensor("D2").read() > MINDIST:
+  ligth1 = brick.sensor("A6").read()    # Значение датчика 1
+  ligth2 = brick.sensor("A5").read()    # Значение датчика 2
+  while brick.sensor("D2").read() > MINDIST:    # Пока мы дальше чем MINDIST от препядствия
     odom.tick()
-    if(time.time() - oldTime>0.01):
+    if(time.time() - oldTime > 0.1):
       oldTime = time.time()
       ligth1 = brick.sensor("A6").read()
       ligth2 = brick.sensor("A5").read()
-      error = (ligth2 - ligth1) * kP
-      m1_pid.target_speed = speed - error
+      error = (ligth2 - ligth1) * kP    # Ошибка линии
+      m1_pid.target_speed = speed - error   # Полутанковая схема (только передние)
       m2_pid.target_speed = speed + error
       m3_pid.target_speed = speed 
       m4_pid.target_speed = speed 
@@ -184,31 +180,28 @@ def goToLineSensor(speed = 0.3, kP = 0.005, MINDIST = 35):
       m2_pid.motor_pid()
       m3_pid.motor_pid()
       m4_pid.motor_pid()
+  odom.delta_x = odom.x_glob     # Насколько мы сместились (для одометрии)
+  odom.delta_y = odom.y_glob     # Насколько мы сместились (для одометрии)
 
 
 def goToLineDistance(distance, speed = 0.4, kP = 0.0035):
+  # 0.6 0.005
   global m1_pid, m2_pid, m3_pid, m4_pid, a, b, c, d
-  dist_error = 355*speed - 104
+  dist_error = 355*speed - 104    # Расчет тормозного пути
   distance -= dist_error 
   oldTime = 0
-  ligth1 = brick.sensor("A6").read()
-  ligth2 = brick.sensor("A5").read()
-  startX = odom.x
+  ligth1 = brick.sensor("A6").read()    # Значение датчика 1
+  ligth2 = brick.sensor("A5").read()    # Значение датчика 2
+  startX = odom.x   
   odom.tick()
-  brick.display().addLabel(odom.x,1,10)
-  brick.display().redraw()
   while odom.x - startX < distance:
     odom.tick()
     if(time.time() - oldTime>0.01):
       oldTime = time.time()
       ligth1 = brick.sensor("A6").read()
       ligth2 = brick.sensor("A5").read()
-      error = (ligth1 - ligth2) * kP
-      brick.display().addLabel("L1 = " + str(ligth1),1,10)
-      brick.display().addLabel("L2 = " + str(ligth2),1,20)
-      brick.display().addLabel("error = " + str(error),1,30)
-      brick.display().redraw()
-      m1_pid.target_speed = speed - error
+      error = (ligth1 - ligth2) * kP     # Ошибка линии
+      m1_pid.target_speed = speed - error   # Полутанковая схема (только передние)
       m2_pid.target_speed = speed + error
       m3_pid.target_speed = speed 
       m4_pid.target_speed = speed 
@@ -216,9 +209,161 @@ def goToLineDistance(distance, speed = 0.4, kP = 0.0035):
       m2_pid.motor_pid()
       m3_pid.motor_pid()
       m4_pid.motor_pid()
+  odom.delta_x = odom.x_glob     # Насколько мы сместились (для одометрии)
+  odom.delta_y = odom.y_glob     # Насколько мы сместились (для одометрии)
 
+
+
+def goToLineTime(Time, speed = 0.4, kP = 0.0035):
+  # Для speed =  0.6 kP = 0.005
+  global m1_pid, m2_pid, m3_pid, m4_pid, a, b, c, d 
+  oldTime = 0
+  ligth1 = brick.sensor("A6").read()    # Значение датчика 1
+  ligth2 = brick.sensor("A5").read()    # Значение датчика 2
+  startTime = time.time()
+  while time.time() - startTime < Time:
+    odom.tick()
+    if(time.time() - oldTime>0.1):
+      oldTime = time.time()
+      ligth1 = brick.sensor("A6").read()    # Значение датчика 1
+      ligth2 = brick.sensor("A5").read()    # Значение датчика 2
+      error = (ligth1 - ligth2) * kP    # Ошибка линии
+      m1_pid.target_speed = speed - error   # Полутанковая схема (только передние)
+      m2_pid.target_speed = speed + error
+      m3_pid.target_speed = speed 
+      m4_pid.target_speed = speed 
+      m1_pid.motor_pid()
+      m2_pid.motor_pid()
+      m3_pid.motor_pid()
+      m4_pid.motor_pid()
+  odom.delta_x = odom.x_glob     # Насколько мы сместились (для одометрии)
+  odom.delta_y = odom.y_glob     # Насколько мы сместились (для одометрии)
+
+
+
+
+
+def doLineUp(lineUP = 5, size = 100, speed = 0.4, kP = 0.0035):
+  # Для speed =  0.6 kP = 0.005
+  global m1_pid, m2_pid, m3_pid, m4_pid, a, b, c, d
+  oldTime = 0
+  ligth1 = brick.sensor("A6").read()    # Значение датчика 1
+  ligth2 = brick.sensor("A5").read()    # Значение датчика 2
+  error = 0
+  arr = 0
+  for i in range(size):    # Заполняем массив для бегущего среднего
+    arr[i] = size
+  ptr = 0
+  while round(sum(arr)/size, 4) > lineUP:    # Пока средняя ошибка больше чем LineUp 
+    odom.tick()
+    if(time.time() - oldTime>0.1):
+      oldTime = time.time()
+      ligth1 = brick.sensor("A6").read()    # Значение датчика 1
+      ligth2 = brick.sensor("A5").read()    # Значение датчика 2
+      error = (ligth1 - ligth2) * kP    # Ошибка линии
+      arr[ptr % size] = abs(error)  
+      ptr += 1
+      m1_pid.target_speed = speed - error   # Полутанковая схема (только передние)
+      m2_pid.target_speed = speed + error
+      m3_pid.target_speed = speed 
+      m4_pid.target_speed = speed 
+      m1_pid.motor_pid()
+      m2_pid.motor_pid()
+      m3_pid.motor_pid()
+      m4_pid.motor_pid()
+  odom.delta_x = odom.x_glob     # Насколько мы сместились (для одометрии)
+  odom.delta_y = odom.y_glob     # Насколько мы сместились (для одометрии)
+
+
+def bump(dirY = 1, speed = 0.4): # dirY => (-1;1) ; dirX => (-1;1)
+  oldTime = time.time()
+  while time.time() - oldTime < 1:    # Одну секунду движемся вбок (dirY выбирает направление)
+    m1_pid.target_speed(speed * dirY)
+    m2_pid.target_speed(-speed * dirY)
+    m3_pid.target_speed(-speed * dirY)
+    m4_pid.target_speed(speed * dirY)
+  oldTime = time.time()
+  while time.time() - oldTime < 1:    # Одну секунду движемся назад 
+    m1_pid.target_speed(-speed)
+    m2_pid.target_speed(-speed)
+    m3_pid.target_speed(-speed)
+    m4_pid.target_speed(-speed)
+  odom.x = 0        # Обнуляем одометрию
+  odom.y = 0
+  odom.x_glob = 0
+  odom.y_glob = 0
+  odom.w = 0
+  
+  
+  
+def bumpDist(mode, dir = 1, speed = 0.4):    # Mode = "X","Y"  Dir = направление (1 = ->; -1 = <-)  
+  if mode == "X":   # В стену по X (сзади)
+    oldTime = time.time()
+    while time.time() - oldTime < 1:    # Одну секунду движемся назад 
+      m1_pid.target_speed(-speed)
+      m2_pid.target_speed(-speed)
+      m3_pid.target_speed(-speed)
+      m4_pid.target_speed(-speed)    
+    odom.x = 0        # Обнуляем одометрию
+    odom.y = 0
+    odom.x_glob = 0
+    odom.y_glob = 0
+    odom.w = 0
+    return brick.sensor("D2").read()    # Вывод расстояния до ближайшего обьекта (для A*)
+  else:
+    oldTime = time.time()
+    while time.time() - oldTime < 1:    # Одну секунду движемся вбок (dir выбирает направление)
+      m1_pid.target_speed(speed * dirY)
+      m2_pid.target_speed(-speed * dirY)
+      m3_pid.target_speed(-speed * dirY)
+      m4_pid.target_speed(speed * dirY)
+    odom.x = 0        # Обнуляем одометрию
+    odom.y = 0
+    odom.x_glob = 0
+    odom.y_glob = 0
+    odom.w = 0
+    return brick.sensor("D1").read()# Вывод расстояния до ближайшего обьекта (для A*)
+
+
+def lineFollowUntilCross(val = 50, speed = 0.4, kP = 0.0035):
+  # Для speed =  0.6 kP = 0.005
+  global m1_pid, m2_pid, m3_pid, m4_pid, a, b, c, d 
+  oldTime = 0
+  ligth1 = brick.sensor("A6").read()    # Значение датчика 1
+  ligth2 = brick.sensor("A5").read()    # Значение датчика 2
+  startTime = time.time()
+  while light1 <= val and light2 <= val:    # Пока не перекресток
+    odom.tick()
+    if(time.time() - oldTime > 0.1):
+      oldTime = time.time()
+      ligth1 = brick.sensor("A6").read()    # Значение датчика 1
+      ligth2 = brick.sensor("A5").read()    # Значение датчика 2
+      error = (ligth1 - ligth2) * kP    # Ошибка линии
+      m1_pid.target_speed = speed - error   # Полутанковая схема (только передние)
+      m2_pid.target_speed = speed + error
+      m3_pid.target_speed = speed 
+      m4_pid.target_speed = speed 
+      m1_pid.motor_pid()
+      m2_pid.motor_pid()
+      m3_pid.motor_pid()
+      m4_pid.motor_pid()
+  odom.delta_x = odom.x_glob     # Насколько мы сместились (для одометрии)
+  odom.delta_y = odom.y_glob     # Насколько мы сместились (для одометрии)
 
 goToLineDistance(500, 0.6, 0.005) 
-# 0.6 0.005
-# 0.4 -> 3 / 3/3
-# 0.6 -> 10 (8, 11)
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#-------TODO:----------------------------------------------------------------------------------------------------------------------------------------------------------------
+  
+
+def straightTime():
+  pass
+def straightDist():
+  pass
+def straightSensor():
+  pass
+
+
+
+
+
+
